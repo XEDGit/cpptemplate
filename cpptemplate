@@ -35,6 +35,16 @@ do
 					OVERWRITECPP="YES"
 					continue
 				;;
+
+				"-argv")
+					CPPARGV="int argc, char **argv"
+					continue
+				;;
+
+				"-W")
+					CPPFLAGS="int argc, char **argv"
+					continue
+				;;
 		esac
 
 		includes+=($var)
@@ -106,6 +116,7 @@ done
 
 if ( [ -n "$OVERWRITECPP" ] && [ -f "src/main.cpp" ] ) || ! [ -f "src/main.cpp" ]
 then
+	rm -f src/main.cpp
 	for var in ${includes[@]}
 	do
 		echo "#include <$var.hpp>" >> src/main.cpp
@@ -130,7 +141,7 @@ OBJ_DIR := obj
 
 OBJ := $(addprefix $(OBJ_DIR)/, $(notdir $(SRC:.cpp=.o)))
 
-FLAGS := -std=c++98 -Wall -Wextra -Werror -I $(INCLUDE)
+FLAGS := -std=c++98 -I $(INCLUDE)
 
 NAME := ' > Makefile
 	echo $CPPPROJNAME >> Makefile
