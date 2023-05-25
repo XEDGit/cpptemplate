@@ -1,13 +1,126 @@
 #!/bin/bash
 
-if [ -z $1 ]
+if [ -z "$1" ]
 then
 	echo "Class names not specified"
 	exit 1
 fi
 
 mkdir -p src inc
-echo 'SRC_DIR := src
+
+unset CPPPROJNAME
+
+unset VERBOSE_CONSTRUCTORS
+
+unset OVERWRITECPP
+
+includes=()
+
+for (( i=1; i<=$#; i++))
+do
+		var="${!i}"
+		case "$var" in
+				"-v" | "--verbose")
+					VERBOSE_CONSTRUCTORS="YES"
+					continue
+				;;
+
+				"-n" | "--name")
+					i=$((i+1))
+					CPPPROJNAME=${!i}
+					continue
+				;;
+
+				"--overwrite")
+					OVERWRITECPP="YES"
+					continue
+				;;
+		esac
+
+		includes+=($var)
+
+		caps=$(echo $var | tr 'a-z' 'A-Z')
+
+		if ( [ -n "$OVERWRITECPP" ] && [ -f "inc/${var}.hpp" ] ) || ! [ -f "inc/${var}.hpp" ]
+		then
+			echo "#ifndef ${caps}_HPP
+# define ${caps}_HPP
+
+# include <iostream>
+
+class ${var}
+{
+		private:
+		public:
+								$var(void);
+								~$var();
+								$var(const $var &old);
+				$var&   operator=(const $var &old);
+};
+
+#endif" > inc/$var.hpp
+		fi
+
+		if ( [ -n "$OVERWRITECPP" ] && [ -f "src/${var}.cpp" ] ) || ! [ -f "src/${var}.cpp" ]
+		then
+			echo "#include <$var.hpp>
+
+$var::$var(void)
+{" > src/$var.cpp
+			if [ -n "$VERBOSE_CONSTRUCTORS" ]
+			then
+					echo "	std::cout << \"Default constructor called on $var\" << std::endl;" >> src/$var.cpp
+			fi
+			echo "}
+
+$var::$var(const $var &old)
+{
+" >> src/$var.cpp
+			if [ -n "$VERBOSE_CONSTRUCTORS" ]
+			then
+					echo "	std::cout << \"Copy constructor called on $var\" << std::endl;" >> src/$var.cpp
+			fi
+			echo "	*this = old;
+}
+
+$var::~$var()
+{" >> src/$var.cpp
+			if [ -n "$VERBOSE_CONSTRUCTORS" ]
+			then
+					echo "	std::cout << \"Destructor called on $var\" << std::endl;" >> src/$var.cpp
+			fi
+			echo "}
+
+$var    &$var::operator =(const $var &old)
+{" >> src/$var.cpp
+			if [ -n "$VERBOSE_CONSTRUCTORS" ]
+			then
+					echo "	std::cout << \"Copy assignment operator called on $var\" << std::endl;" >> src/$var.cpp
+			fi
+			echo "	// TODO
+	return *this;
+}" >> src/$var.cpp
+		fi
+done
+
+
+if ( [ -n "$OVERWRITECPP" ] && [ -f "src/main.cpp" ] ) || ! [ -f "src/main.cpp" ]
+then
+	for var in ${includes[@]}
+	do
+		echo "#include <$var.hpp>" >> src/main.cpp
+	done
+	echo "
+	int main($CPPARGV)
+	{
+
+	}" >> src/main.cpp
+fi
+
+if ( [ -n "$OVERWRITECPP" ] && [ -f "Makefile" ] ) || ! [ -f "Makefile" ]
+then
+
+	echo -n 'SRC_DIR := src
 
 INCLUDE := inc
 
@@ -19,111 +132,31 @@ OBJ := $(addprefix $(OBJ_DIR)/, $(notdir $(SRC:.cpp=.o)))
 
 FLAGS := -std=c++98 -Wall -Wextra -Werror -I $(INCLUDE)
 
-NAME := 
-
+NAME := ' > Makefile
+	echo $CPPPROJNAME >> Makefile
+	echo '
 $(NAME): $(OBJ) | $(SRC_DIR)
-	$(info Compiling executable...)
-	$(CXX) $(FLAGS) $^ -o $@
+		$(info Compiling executable...)
+		$(CXX) $(FLAGS) $^ -o $@
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
-	$(CXX) $(FLAGS) $< -o $@ -c
+		$(CXX) $(FLAGS) $< -o $@ -c
 
 $(OBJ_DIR):
-	mkdir -p $(OBJ_DIR)
+		mkdir -p $(OBJ_DIR)
 
 re: fclean $(NAME)
 
 clean:
-	rm -rf $(OBJ_DIR)
+		rm -rf $(OBJ_DIR)
 
 fclean: clean
-	rm -f $(NAME)
+		rm -f $(NAME)
 
 rebug: fclean debug
 
 debug: FLAGS  = -std=c++98 -I $(INCLUDE) -g
-debug: $(NAME)' > Makefile
-
-includes=()
-
-for var in $@
-do
-
-	if [ $1 == "-v" ]
-	then
-		VERBOSE_CONSTRUCTORS="YES"
-		continue
-	fi
-
-	includes+=($var)
-
-	caps=$(echo $var | tr 'a-z' 'A-Z')
-
-	echo "#ifndef ${caps}_HPP
-# define ${caps}_HPP
-
-# include <iostream>
-
-class ${var}
-{
-	private:
-	public:
-				$var(void);
-				~$var();
-				$var(const $var &old);
-		$var& 	operator=(const $var &old);
-};
-
-#endif" > inc/$var.hpp
-
-	echo "#include <$var.hpp>
-
-$var::$var(void)
-{" >> src/$var.cpp
-if [ -n "$VERBOSE_CONSTRUCTORS" ]
-then
-	echo "	std::cout << \"Default constructor called on $var\" << std::endl;" >> src/$var.cpp
+debug: $(NAME)' >> Makefile
 fi
-echo "}
 
-$var::$var(const $var &old)
-{
-" >> src/$var.cpp
-if [ -n "$VERBOSE_CONSTRUCTORS" ]
-then
-	echo "	std::cout << \"Copy constructor called on $var\" << std::endl;" >> src/$var.cpp
-fi
-echo "	*this = old;
-}
 
-$var::~$var()
-{" >> src/$var.cpp
-if [ -n "$VERBOSE_CONSTRUCTORS" ]
-then
-	echo "	std::cout << \"Destructor called on $var\" << std::endl;" >> src/$var.cpp
-fi
-echo "}
-
-$var	&$var::operator =(const $var &old)
-{
-" >> src/$var.cpp
-if [ -n "$VERBOSE_CONSTRUCTORS" ]
-then
-	echo "	std::cout << \"Copy assignment operator called on $var\" << std::endl;" >> src/$var.cpp
-fi
-echo "	// TODO
-	return *this;
-}" >> src/$var.cpp
-
-done
-
-for var in ${includes[@]}
-do
-	echo "#include <$var.hpp>" >> src/main.cpp
-done
-
-echo "
-int main(int argc, char** argv)
-{
-	
-}" >> src/main.cpp
