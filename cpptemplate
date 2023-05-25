@@ -122,10 +122,10 @@ then
 		echo "#include <$var.hpp>" >> src/main.cpp
 	done
 	echo "
-	int main($CPPARGV)
-	{
+int main($CPPARGV)
+{
 
-	}" >> src/main.cpp
+}" >> src/main.cpp
 fi
 
 if ( [ -n "$OVERWRITECPP" ] && [ -f "Makefile" ] ) || ! [ -f "Makefile" ]
