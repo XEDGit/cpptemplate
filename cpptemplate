@@ -8,127 +8,139 @@ fi
 
 mkdir -p src inc
 
-unset CPPPROJNAME
+unset CPPTPROJNAME
 
 unset VERBOSE_CONSTRUCTORS
 
-unset OVERWRITECPP
+unset OVERWRITECPPT
 
 includes=()
 
 for (( i=1; i<=$#; i++))
 do
-		var="${!i}"
-		case "$var" in
-				"-v" | "--verbose")
-					VERBOSE_CONSTRUCTORS="YES"
-					continue
-				;;
+	var="${!i}"
+	case "$var" in
+		"-v" | "--verbose")
+			VERBOSE_CONSTRUCTORS="YES"
+			continue
+		;;
 
-				"-n" | "--name")
-					i=$((i+1))
-					CPPPROJNAME=${!i}
-					continue
-				;;
+		"-n" | "--name")
+			i=$((i+1))
+			CPPTPROJNAME=${!i}
+			continue
+		;;
 
-				"--overwrite")
-					OVERWRITECPP="YES"
-					continue
-				;;
+		"--overwrite")
+			OVERWRITECPPT="YES"
+			continue
+		;;
 
-				"-argv")
-					CPPARGV="int argc, char **argv"
-					continue
-				;;
+		"-argv")
+			CPPTARGV="int argc, char **argv"
+			continue
+		;;
 
-				"-W")
-					CPPFLAGS="int argc, char **argv"
-					continue
-				;;
-		esac
+		"-W")
+			CPPTSTRICT="-Wall -Werror -Wextra"
+			continue
+		;;
 
-		includes+=($var)
+		"--clean")
+			rm -rfv inc obj src Makefile
+			exit 0
+		;;
+	esac
 
-		caps=$(echo $var | tr 'a-z' 'A-Z')
+	includes+=($var)
 
-		if ( [ -n "$OVERWRITECPP" ] && [ -f "inc/${var}.hpp" ] ) || ! [ -f "inc/${var}.hpp" ]
-		then
-			echo "#ifndef ${caps}_HPP
+	caps=$(echo $var | tr 'a-z' 'A-Z')
+
+	if [ -n "$OVERWRITECPPT" ] || ! [ -f "inc/${var}.hpp" ]
+	then
+		echo "#ifndef ${caps}_HPP
 # define ${caps}_HPP
-
-# include <iostream>
 
 class ${var}
 {
-		private:
-		public:
-								$var(void);
-								~$var();
-								$var(const $var &old);
-				$var&   operator=(const $var &old);
+	private:
+	public:
+					$var(void);
+					~$var();
+					$var(const $var &old);
+			$var&   operator=(const $var &old);
 };
 
 #endif" > inc/$var.hpp
-		fi
+	fi
 
-		if ( [ -n "$OVERWRITECPP" ] && [ -f "src/${var}.cpp" ] ) || ! [ -f "src/${var}.cpp" ]
-		then
-			echo "#include <$var.hpp>
+	if [ -n "$OVERWRITECPPT" ] || ! [ -f "src/${var}.cpp" ]
+	then
+		echo "#include <$var.hpp>
 
 $var::$var(void)
 {" > src/$var.cpp
-			if [ -n "$VERBOSE_CONSTRUCTORS" ]
-			then
-					echo "	std::cout << \"Default constructor called on $var\" << std::endl;" >> src/$var.cpp
-			fi
-			echo "}
+	if [ -n "$VERBOSE_CONSTRUCTORS" ]
+	then
+			echo "	std::cout << \"Default constructor called on $var\" << std::endl;" >> src/$var.cpp
+	fi
+	echo "}
 
 $var::$var(const $var &old)
 {
 " >> src/$var.cpp
-			if [ -n "$VERBOSE_CONSTRUCTORS" ]
-			then
-					echo "	std::cout << \"Copy constructor called on $var\" << std::endl;" >> src/$var.cpp
-			fi
-			echo "	*this = old;
+	if [ -n "$VERBOSE_CONSTRUCTORS" ]
+	then
+			echo "	std::cout << \"Copy constructor called on $var\" << std::endl;" >> src/$var.cpp
+	fi
+	echo "	*this = old;
 }
 
 $var::~$var()
 {" >> src/$var.cpp
-			if [ -n "$VERBOSE_CONSTRUCTORS" ]
-			then
-					echo "	std::cout << \"Destructor called on $var\" << std::endl;" >> src/$var.cpp
-			fi
-			echo "}
+	if [ -n "$VERBOSE_CONSTRUCTORS" ]
+	then
+			echo "	std::cout << \"Destructor called on $var\" << std::endl;" >> src/$var.cpp
+	fi
+	echo "}
 
 $var    &$var::operator =(const $var &old)
 {" >> src/$var.cpp
-			if [ -n "$VERBOSE_CONSTRUCTORS" ]
-			then
-					echo "	std::cout << \"Copy assignment operator called on $var\" << std::endl;" >> src/$var.cpp
-			fi
-			echo "	// TODO
+	if [ -n "$VERBOSE_CONSTRUCTORS" ]
+	then
+			echo "	std::cout << \"Copy assignment operator called on $var\" << std::endl;" >> src/$var.cpp
+	fi
+	echo "	// TODO
 	return *this;
 }" >> src/$var.cpp
-		fi
+	fi
 done
 
-
-if ( [ -n "$OVERWRITECPP" ] && [ -f "src/main.cpp" ] ) || ! [ -f "src/main.cpp" ]
+if [ -n "$OVERWRITECPPT" ] && [ -f "src/main.cpp" ]
 then
-	rm -f src/main.cpp
+	mv src/main.cpp src/main.bk.cpp
+	for var in ${includes[@]}
+	do
+		echo "#include <$var.hpp>" >> src/main.cpp
+	done
+	cat src/main.bk.cpp >> src/main.cpp
+	rm src/main.bk.cpp
+fi
+
+if ! [ -f "src/main.cpp" ]
+then
 	for var in ${includes[@]}
 	do
 		echo "#include <$var.hpp>" >> src/main.cpp
 	done
 	echo "
-int main($CPPARGV)
+int main($CPPTARGV)
 {
 
 }" >> src/main.cpp
 fi
 
-if ( [ -n "$OVERWRITECPP" ] && [ -f "Makefile" ] ) || ! [ -f "Makefile" ]
+if [ -n "$OVERWRITECPPT" ] || ! [ -f "Makefile" ]
 then
 
 	echo -n 'SRC_DIR := src
@@ -137,32 +149,34 @@ INCLUDE := inc
 
 SRC := $(wildcard $(SRC_DIR)/*.cpp)
 
+INC := $(wildcard $(INCLUDE)/*.hpp)
+
 OBJ_DIR := obj
 
 OBJ := $(addprefix $(OBJ_DIR)/, $(notdir $(SRC:.cpp=.o)))
 
-FLAGS := -std=c++98 -I $(INCLUDE)
+FLAGS := -std=c++98 -I $(INCLUDE)' > Makefile
+	echo " $CPPTSTRICT
 
-NAME := ' > Makefile
-	echo $CPPPROJNAME >> Makefile
+NAME := $CPPTPROJNAME" >> Makefile
 	echo '
 $(NAME): $(OBJ) | $(SRC_DIR)
-		$(info Compiling executable...)
-		$(CXX) $(FLAGS) $^ -o $@
+	$(info Compiling executable...)
+	$(CXX) $(FLAGS) $^ -o $@
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp | $(OBJ_DIR)
-		$(CXX) $(FLAGS) $< -o $@ -c
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.cpp $(INC) | $(OBJ_DIR)
+	$(CXX) $(FLAGS) $< -o $@ -c
 
 $(OBJ_DIR):
-		mkdir -p $(OBJ_DIR)
+	mkdir -p $(OBJ_DIR)
 
 re: fclean $(NAME)
 
 clean:
-		rm -rf $(OBJ_DIR)
+	rm -rf $(OBJ_DIR)
 
 fclean: clean
-		rm -f $(NAME)
+	rm -f $(NAME)
 
 rebug: fclean debug
 
